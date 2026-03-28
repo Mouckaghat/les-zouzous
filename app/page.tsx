@@ -532,13 +532,29 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    return () => {
-      stopCamera();
-      recognitionSingleRef.current?.stop();
-      recognitionARef.current?.stop();
-      recognitionBRef.current?.stop();
-    };
-  }, []);
+  return () => {
+    stopCamera();
+    recognitionSingleRef.current?.stop();
+    recognitionARef.current?.stop();
+    recognitionBRef.current?.stop();
+  };
+}, []);
+
+useEffect(() => {
+  async function attachStreamToVideo() {
+    if (cameraOpen && videoRef.current && streamRef.current) {
+      try {
+        videoRef.current.srcObject = streamRef.current;
+        await videoRef.current.play();
+        setWarning("");
+      } catch {
+        setWarning(t.errorCamera);
+      }
+    }
+  }
+
+  attachStreamToVideo();
+}, [cameraOpen, t.errorCamera]);
 
   const t = UI[uiLang ?? "en"];
 
@@ -818,27 +834,22 @@ export default function Page() {
     }
   }
 
-  async function openCamera() {
-    setWarning("");
+async function openCamera() {
+  setWarning("");
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false
-      });
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+      audio: false
+    });
 
-      streamRef.current = stream;
-      setCameraOpen(true);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-    } catch {
-      setWarning(t.errorCamera);
-      setCameraOpen(false);
-    }
+    streamRef.current = stream;
+    setCameraOpen(true);
+  } catch {
+    setWarning(t.errorCamera);
+    setCameraOpen(false);
   }
+}
 
   function stopCamera() {
     if (streamRef.current) {
@@ -860,9 +871,9 @@ export default function Page() {
     const height = video.videoHeight;
 
     if (!width || !height) {
-      setWarning(t.errorNoImage);
-      return;
-    }
+  setWarning("Camera is not ready yet. Please wait one second and try again.");
+  return;
+}
 
     canvas.width = width;
     canvas.height = height;
