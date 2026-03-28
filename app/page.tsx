@@ -148,6 +148,8 @@ const UI = {
     errorOcr: "Lili Visual could not read this image clearly. Try a sharper image.",
     errorTranslateService:
       "Translation service currently unavailable. Please try again in a moment.",
+    cameraNotReady:
+      "Camera is not ready yet. Please wait one second and try again.",
 
     footer: "© Lobster Inc. / Jura Technology. All rights reserved."
   },
@@ -248,6 +250,8 @@ const UI = {
       "Lili Visual n’a pas pu lire cette image correctement. Essayez une image plus nette.",
     errorTranslateService:
       "Le service de traduction est actuellement indisponible. Veuillez réessayer dans un instant.",
+    cameraNotReady:
+      "La caméra n’est pas encore prête. Veuillez attendre une seconde et réessayer.",
 
     footer: "© Lobster Inc. / Jura Technology. Tous droits réservés."
   },
@@ -348,6 +352,8 @@ const UI = {
       "Lili Visual konnte dieses Bild nicht klar lesen. Bitte versuchen Sie es mit einem schärferen Bild.",
     errorTranslateService:
       "Der Übersetzungsdienst ist derzeit nicht verfügbar. Bitte versuchen Sie es in einem Moment erneut.",
+    cameraNotReady:
+      "Die Kamera ist noch nicht bereit. Bitte warten Sie eine Sekunde und versuchen Sie es erneut.",
 
     footer: "© Lobster Inc. / Jura Technology. Alle Rechte vorbehalten."
   }
@@ -524,6 +530,8 @@ export default function Page() {
   const photoInputARef = useRef<HTMLInputElement | null>(null);
   const photoInputBRef = useRef<HTMLInputElement | null>(null);
 
+  const t = UI[uiLang ?? "en"];
+
   useEffect(() => {
     setMounted(true);
     setSupportsSpeech(
@@ -532,31 +540,29 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-  return () => {
-    stopCamera();
-    recognitionSingleRef.current?.stop();
-    recognitionARef.current?.stop();
-    recognitionBRef.current?.stop();
-  };
-}, []);
+    return () => {
+      stopCamera();
+      recognitionSingleRef.current?.stop();
+      recognitionARef.current?.stop();
+      recognitionBRef.current?.stop();
+    };
+  }, []);
 
-useEffect(() => {
-  async function attachStreamToVideo() {
-    if (cameraOpen && videoRef.current && streamRef.current) {
-      try {
-        videoRef.current.srcObject = streamRef.current;
-        await videoRef.current.play();
-        setWarning("");
-      } catch {
-        setWarning(t.errorCamera);
+  useEffect(() => {
+    async function attachStreamToVideo() {
+      if (cameraOpen && videoRef.current && streamRef.current) {
+        try {
+          videoRef.current.srcObject = streamRef.current;
+          await videoRef.current.play();
+          setWarning("");
+        } catch {
+          setWarning(t.errorCamera);
+        }
       }
     }
-  }
 
-  attachStreamToVideo();
-}, [cameraOpen, t.errorCamera]);
-
-  const t = UI[uiLang ?? "en"];
+    attachStreamToVideo();
+  }, [cameraOpen, t.errorCamera]);
 
   async function translateText(text: string, source: LanguageCode, target: LanguageCode) {
     const response = await fetch("/api/translate", {
@@ -795,61 +801,69 @@ useEffect(() => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    try {
-      setBusy(true);
-      setWarning("");
+    setBusy(true);
+    setWarning("");
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const result = reader.result;
-          if (typeof result !== "string") return;
+    const reader = new FileReader();
 
-          const worker = await createWorker(
-            mapOcrLang(
-              LANGUAGE_CODE_BY_LABEL[side === "a" ? convLangA : convLangB] || "EN"
-            )
-          );
-          const ocr = await worker.recognize(result);
-          await worker.terminate();
+    reader.onload = async () => {
+      try {
+        const result = reader.result;
 
-          const text = ocr.data.text?.trim() || "";
-          if (side === "a") {
-            setConvTextA(text);
-            setCommModeA("photo");
-          } else {
-            setConvTextB(text);
-            setCommModeB("photo");
-          }
-        } catch {
+        if (typeof result !== "string") {
           setWarning(t.errorOcr);
-        } finally {
-          setBusy(false);
+          return;
         }
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      setBusy(false);
+
+        const worker = await createWorker(
+          mapOcrLang(
+            LANGUAGE_CODE_BY_LABEL[side === "a" ? convLangA : convLangB] || "EN"
+          )
+        );
+
+        const ocr = await worker.recognize(result);
+        await worker.terminate();
+
+        const text = ocr.data.text?.trim() || "";
+
+        if (side === "a") {
+          setConvTextA(text);
+          setCommModeA("photo");
+        } else {
+          setConvTextB(text);
+          setCommModeB("photo");
+        }
+      } catch {
+        setWarning(t.errorOcr);
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    reader.onerror = () => {
       setWarning(t.errorOcr);
+      setBusy(false);
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  async function openCamera() {
+    setWarning("");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false
+      });
+
+      streamRef.current = stream;
+      setCameraOpen(true);
+    } catch {
+      setWarning(t.errorCamera);
+      setCameraOpen(false);
     }
   }
-
-async function openCamera() {
-  setWarning("");
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-      audio: false
-    });
-
-    streamRef.current = stream;
-    setCameraOpen(true);
-  } catch {
-    setWarning(t.errorCamera);
-    setCameraOpen(false);
-  }
-}
 
   function stopCamera() {
     if (streamRef.current) {
@@ -871,9 +885,9 @@ async function openCamera() {
     const height = video.videoHeight;
 
     if (!width || !height) {
-  setWarning("Camera is not ready yet. Please wait one second and try again.");
-  return;
-}
+      setWarning(t.cameraNotReady);
+      return;
+    }
 
     canvas.width = width;
     canvas.height = height;
