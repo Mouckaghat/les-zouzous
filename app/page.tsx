@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import CommunicatorLiveListening from "../components/CommunicatorLiveListening";
 import { useEffect, useRef, useState } from "react";
 import { createWorker } from "tesseract.js";
 
@@ -490,6 +491,7 @@ export default function Page() {
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
 
   const [mode, setMode] = useState<Mode>("translator");
+  const [communicatorView, setCommunicatorView] = useState<"conversation" | "live">("conversation");
   const [warning, setWarning] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -1222,6 +1224,14 @@ export default function Page() {
 
           {mode === "communicator" && (
             <>
+              <section className="card spacious-card" aria-label="Communicator experience">
+                <div className="mode-row">
+                  <button className={communicatorView === "conversation" ? "mode-button active" : "mode-button"} onClick={() => setCommunicatorView("conversation")}>💬 Conversation</button>
+                  <button className={communicatorView === "live" ? "mode-button active" : "mode-button"} onClick={() => setCommunicatorView("live")}>🎧 Live Listening</button>
+                </div>
+              </section>
+              {communicatorView === "live" && <CommunicatorLiveListening />}
+              {communicatorView === "conversation" && <>
               <section className="card spacious-card communicator-top-card">
                 <div className="section-badge">{t.communicatorBadge}</div>
                 <div className="section-title large-title">{t.communicatorTitle}</div>
@@ -1488,6 +1498,7 @@ export default function Page() {
                   ))}
                 </section>
               )}
+              </>
             </>
           )}
 
